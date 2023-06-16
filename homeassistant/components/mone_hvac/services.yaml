@@ -1,0 +1,89 @@
+# Service ID
+set_swingh_mode:
+  # Service name as shown in UI
+  name: Set swingh mode
+  # Description of the service
+  description: Set the horizontal swing mode
+  # If the service accepts entity IDs, target allows the user to specify entities by
+  # entity, device, or area. If `target` is specified, `entity_id` should not be
+  # defined in the `fields` map. By default it shows only targets matching entities
+  # from the same domain as the service, but if further customization is required,
+  # target supports the entity, device, and area selectors
+  # (https://www.home-assistant.io/docs/blueprint/selectors/). Entity selector
+  # parameters will automatically be applied to device and area, and device selector
+  # parameters will automatically be applied to area.
+  target:
+    entity:
+      domain: climate
+      # If not all entities from the service's domain support a service, entities
+      # can be further filtered by the `supported_features` state attribute. An
+      # entity will only be possible to select if it supports at least one of the
+      # listed supported features.
+      supported_features:
+        - climate.ClimateEntityFeature.SWING_MODE
+  # Different fields that your service accepts
+  fields:
+    # Key of the field
+    swingh_mode:
+      # Field name as shown in UI
+      name: swingh_mode
+      # Description of the field
+      description: horizontal swing mode
+      # Whether or not field is required (default = false)
+      required: true
+      # Example value that can be passed for this field
+      example: "Right"
+      # The default field value
+      default: "Middle"
+      # Selector (https://www.home-assistant.io/docs/blueprint/selectors/) to control
+      # the input UI for this field
+      selector:
+        select:
+          options:
+            - "Max Left"
+            - "Left"
+            - "Middle"
+            - "Right"
+            - "Max Right"
+            - "Wide"
+
+# Service ID
+set_json:
+  # Service name as shown in UI
+  name: json
+  # Description of the service
+  description: Update the json text to send to IR remote
+  # If the service accepts entity IDs, target allows the user to specify entities by
+  # entity, device, or area. If `target` is specified, `entity_id` should not be
+  # defined in the `fields` map. By default it shows only targets matching entities
+  # from the same domain as the service, but if further customization is required,
+  # target supports the entity, device, and area selectors
+  # (https://www.home-assistant.io/docs/blueprint/selectors/). Entity selector
+  # parameters will automatically be applied to device and area, and device selector
+  # parameters will automatically be applied to area.
+  target:
+    entity:
+      domain: climate
+      # # If not all entities from the service's domain support a service, entities
+      # # can be further filtered by the `supported_features` state attribute. An
+      # # entity will only be possible to select if it supports at least one of the
+      # # listed supported features.
+      # supported_features:
+      #   - climate.
+  # Different fields that your service accepts
+  fields:
+    # Key of the field
+    new_json:
+      # Field name as shown in UI
+      name: new_json
+      # Description of the field
+      description: The new json text to send to IR remote
+      # Whether or not field is required (default = false)
+      required: true
+      # Advanced fields are only shown when the advanced mode is enabled for the user
+      # (default = false)
+      advanced: false
+      # Example value that can be passed for this field
+      example: '{"protocol": "MITSUBISHI_AC", "power": "On", "mode": "auto", "temp": 24, "fanspeed": "Auto", "swingv": "Middle", "swingh": "Middle"}'
+      # The default field value
+      default: '{"protocol": "MITSUBISHI_AC", "power": "On", "mode": "auto", "temp": 24, "fanspeed": "Auto", "swingv": "Middle", "swingh": "Middle"}'

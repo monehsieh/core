@@ -825,6 +825,8 @@ build.json @home-assistant/supervisor
 /tests/components/modern_forms/ @wonderslug
 /homeassistant/components/moehlenhoff_alpha2/ @j-a-n
 /tests/components/moehlenhoff_alpha2/ @j-a-n
+/homeassistant/components/mone_hvac/ @monehsieh
+/tests/components/mone_hvac/ @monehsieh
 /homeassistant/components/monoprice/ @etsinko @OnFreund
 /tests/components/monoprice/ @etsinko @OnFreund
 /homeassistant/components/moon/ @fabaff @frenck
