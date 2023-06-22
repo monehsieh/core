@@ -33,6 +33,7 @@ SERVICE_SET_SWINGH_MODE = "set_swingh_mode"
 SERVICE_SET_JSON = "set_json"
 
 # configurations
+CONF_PROTOCOL = "protocol"
 CONF_HVAC_MODE_LIST = "hvac_modes"
 CONF_FAN_MODE_LIST = "fan_modes"
 CONF_SWINGV_MODE_LIST = "swingv_modes"
@@ -40,6 +41,8 @@ CONF_SWINGH_MODE_LIST = "swingh_modes"
 CONF_IR_IS_ONLINE_TEMPLATE = "ir_is_online_template"
 CONF_CURRENT_TEMPERATURE_TEMPLATE = "current_temperature_template"
 CONF_CURRENT_HUMIDITY_TEMPLATE = "current_humidity_template"
+
+PROTOCOL_DEFAULT = "MSZ__NA"
 
 # HVAC_MODE
 HVAC_MODE_OFF = HVACMode.OFF
@@ -94,18 +97,18 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_NAME): cv.string,
         vol.Optional(CONF_UNIQUE_ID): cv.string,
+        vol.Optional(CONF_PROTOCOL, default=PROTOCOL_DEFAULT): cv.string,
         vol.Optional(CONF_IR_IS_ONLINE_TEMPLATE): cv.template,
         vol.Optional(CONF_CURRENT_TEMPERATURE_TEMPLATE): cv.template,
         vol.Optional(CONF_CURRENT_HUMIDITY_TEMPLATE): cv.template,
-        vol.Optional(CONF_UNIQUE_ID): cv.string,
         vol.Optional(
             CONF_HVAC_MODE_LIST,
             default=[
-                HVAC_MODE_OFF,
-                HVAC_MODE_HEAT,
-                HVAC_MODE_DRY,
-                HVAC_MODE_COOL,
-                HVAC_MODE_AUTO,
+                HVACMode.OFF,
+                HVACMode.HEAT,
+                HVACMode.DRY,
+                HVACMode.COOL,
+                HVACMode.AUTO,
             ],
         ): cv.ensure_list,
         vol.Optional(
@@ -186,6 +189,8 @@ async def async_setup_platform(
 class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
     """Representation of a custom climate device."""
 
+    _protocol: str | None
+
     _mitsubishi_power: str | None
     _mitsubishi_hvac_mode: str | None
 
@@ -207,10 +212,12 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
             unique_id=config.get(CONF_UNIQUE_ID),
         )
 
+        self._protocol = config.get(CONF_PROTOCOL)
+
         self._attr_has_entity_name = True
         self._attr_name = config[CONF_NAME]
 
-        self._attr_unique_id = config[CONF_UNIQUE_ID]
+        self._attr_unique_id = config.get(CONF_UNIQUE_ID)
 
         self._state = None
 
@@ -230,15 +237,15 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
         self._attr_hvac_modes = config[CONF_HVAC_MODE_LIST]
 
         self._attr_fan_mode = FAN_MODE_DEFAULT
-        self._attr_fan_modes = config[CONF_FAN_MODE_LIST]
+        self._attr_fan_modes = config.get(CONF_FAN_MODE_LIST)
 
         self._attr_swing_mode = SWINGV_MODE_DEFAULT
-        self._attr_swing_modes = config[CONF_SWINGV_MODE_LIST]
+        self._attr_swing_modes = config.get(CONF_SWINGV_MODE_LIST)
 
         # mitsubbishi MSZ18NA supports SwingH mode but HASS doesn't
         # so it's stored as an extra attribute.
         self._swingh_mode = SWINGH_MODE_DEFAULT
-        self._swingh_modes = config[CONF_SWINGH_MODE_LIST]
+        self._swingh_modes = config.get(CONF_SWINGH_MODE_LIST)
 
         self._ir_is_online = False
         # self._attr_current_temperature
@@ -449,7 +456,7 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
 
         # Write the new state to the JSON file
         json_data = {
-            "protocol": "MITSUBISHI_AC",
+            "protocol": self._protocol,
             "power": self._mitsubishi_power,
             "mode": self._mitsubishi_hvac_mode,
             "temp": self._attr_target_temperature,
