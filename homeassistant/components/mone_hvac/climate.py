@@ -7,6 +7,9 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components.climate import (
+    ATTR_MAX_TEMP,
+    ATTR_MIN_TEMP,
+    ATTR_TARGET_TEMP_STEP,
     PLATFORM_SCHEMA,
     ClimateEntity,
     ClimateEntityFeature,
@@ -33,7 +36,7 @@ SERVICE_SET_SWINGH_MODE = "set_swingh_mode"
 SERVICE_SET_JSON = "set_json"
 
 # configurations
-CONF_PROTOCOL = "protocol"
+CONF_JSON_FORMAT = "json_format"
 CONF_HVAC_MODE_LIST = "hvac_modes"
 CONF_FAN_MODE_LIST = "fan_modes"
 CONF_SWINGV_MODE_LIST = "swingv_modes"
@@ -42,7 +45,8 @@ CONF_IR_IS_ONLINE_TEMPLATE = "ir_is_online_template"
 CONF_CURRENT_TEMPERATURE_TEMPLATE = "current_temperature_template"
 CONF_CURRENT_HUMIDITY_TEMPLATE = "current_humidity_template"
 
-PROTOCOL_DEFAULT = "MSZ__NA"
+
+JSON_FORMAT_DEFAULT = """{"power":"$power","mode":"$hvac_mode","temp":$temperature,"fanspeed":"$fan_mode","swingv":"$swing_mode","swingh":"$swingh_mode","source":"$source"}"""
 
 # HVAC_MODE
 HVAC_MODE_OFF = HVACMode.OFF
@@ -83,21 +87,31 @@ SWINGH_MODE_WIDE = "Wide"
 
 SWINGH_MODE_DEFAULT = SWINGH_MODE_MIDDLE
 
+SOURCE_HASS = "HASS"
+SOURCE_IRREMOTE = "IRRemote"
+SOURCE_UNKNOWN = ""
+
 ATTR_SWINGH_MODES = "swingh_modes"
 ATTR_SWINGH_MODE = "swingh_mode"
 ATTR_JSON = "json"
+ATTR_JSON_FORMAT = "json_format"
 ATTR_IR_IS_ONLINE = "ir_is_online"
-
 
 _LOGGER = logging.getLogger(__name__)
 
+
+DEFAULT_MAX_TEMP: float = 32
+DEFAULT_MIN_TEMP: float = 16
 
 # Validation of the user's configuration
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_NAME): cv.string,
         vol.Optional(CONF_UNIQUE_ID): cv.string,
-        vol.Optional(CONF_PROTOCOL, default=PROTOCOL_DEFAULT): cv.string,
+        vol.Optional(ATTR_MAX_TEMP, default=DEFAULT_MAX_TEMP): cv.positive_float,
+        vol.Optional(ATTR_MIN_TEMP, default=DEFAULT_MIN_TEMP): cv.positive_float,
+        vol.Optional(ATTR_TARGET_TEMP_STEP, default=1.0): cv.positive_float,
+        vol.Optional(CONF_JSON_FORMAT, default=JSON_FORMAT_DEFAULT): cv.string,
         vol.Optional(CONF_IR_IS_ONLINE_TEMPLATE): cv.template,
         vol.Optional(CONF_CURRENT_TEMPERATURE_TEMPLATE): cv.template,
         vol.Optional(CONF_CURRENT_HUMIDITY_TEMPLATE): cv.template,
@@ -189,8 +203,6 @@ async def async_setup_platform(
 class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
     """Representation of a custom climate device."""
 
-    _protocol: str | None
-
     _mitsubishi_power: str | None
     _mitsubishi_hvac_mode: str | None
 
@@ -202,6 +214,7 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
     _current_temp_template: Template | None
     _current_humidity_template: Template | None
 
+    _json_format: str | None
     _json: str | None
 
     def __init__(self, hass: HomeAssistant, config: ConfigType) -> None:
@@ -212,7 +225,11 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
             unique_id=config.get(CONF_UNIQUE_ID),
         )
 
-        self._protocol = config.get(CONF_PROTOCOL)
+        self._attr_max_temp = config.get(ATTR_MAX_TEMP) or DEFAULT_MAX_TEMP
+        self._attr_min_temp = config.get(ATTR_MIN_TEMP) or DEFAULT_MIN_TEMP
+        self._attr_target_temperature_step = config.get(ATTR_TARGET_TEMP_STEP)
+
+        self._json_format = config.get(CONF_JSON_FORMAT)
 
         self._attr_has_entity_name = True
         self._attr_name = config[CONF_NAME]
@@ -256,7 +273,7 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
 
         # build json
         self._json = None
-        self.build_json()
+        self.build_json(SOURCE_HASS)
 
     @property
     def should_poll(self) -> bool:
@@ -270,6 +287,7 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
             ATTR_SWINGH_MODE: self._swingh_mode,
             ATTR_SWINGH_MODES: self._swingh_modes,
             ATTR_JSON: self._json,
+            ATTR_JSON_FORMAT: self._json_format,
             ATTR_IR_IS_ONLINE: self._ir_is_online,
         }
 
@@ -346,7 +364,7 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         self._attr_target_temperature = kwargs.get("temperature")
-        self.build_json()
+        self.build_json(SOURCE_HASS)
         self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
@@ -357,19 +375,19 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
         else:
             self._mitsubishi_power = "On"
             self._mitsubishi_hvac_mode = hvac_mode
-        self.build_json()
+        self.build_json(SOURCE_HASS)
         self.async_write_ha_state()
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new fan mode."""
         self._attr_fan_mode = fan_mode
-        self.build_json()
+        self.build_json(SOURCE_HASS)
         self.async_write_ha_state()
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new swingv mode."""
         self._attr_swing_mode = swing_mode
-        self.build_json()
+        self.build_json(SOURCE_HASS)
         self.async_write_ha_state()
 
     @property
@@ -381,8 +399,13 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
         """Set new target swingh operation."""
         # await self.hass.async_add_executor_job(self.set_swingh_mode, swingh_mode)
         self._swingh_mode = swingh_mode
-        self.build_json()
+        self.build_json(SOURCE_HASS)
         self.async_write_ha_state()
+
+    @property
+    def json_format(self) -> str:
+        """Json text."""
+        return self._json_format or JSON_FORMAT_DEFAULT
 
     @property
     def json(self) -> str | None:
@@ -427,7 +450,11 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
             self._attr_swing_mode = json_data.get("swingv", self._attr_swing_mode)
             self._swingh_mode = json_data.get("swingh", self._swingh_mode)
 
-            self.build_json()
+            # if "source" is missing from the json string, assume it
+            # is created from HASS.
+            json_source = json_data.get("source", SOURCE_HASS)
+
+            self.build_json(json_source)
 
             return True
 
@@ -436,32 +463,43 @@ class MyClimate(TemplateEntity, ClimateEntity, RestoreEntity):
             _LOGGER.error("JSONDecodeError: %s", err)
             return False
 
-    def build_json(self) -> None:
+    def build_json(self, source: str) -> None:
         """Update the self._json with the current property values.
 
         Callers need to call self.async_write_ha_state() to persist the state
         with HASS.
 
+        source: the source of the changes that triggers to rebuild the
+                json string. e.g. HASS or IRRemote
         E.g.
         {
-            "protocol": "MITSUBISHI_AC",
             "power": "On",
             "mode": "Auto",
             "temp": 25,
             "fanspeed": "Auto",
             "swingv": "Off",
-            "swingh": "Right Max"
+            "swingh": "Right Max",
+            "source": "HASS"
         }
         """
-
         # Write the new state to the JSON file
-        json_data = {
-            "protocol": self._protocol,
-            "power": self._mitsubishi_power,
-            "mode": self._mitsubishi_hvac_mode,
-            "temp": self._attr_target_temperature,
-            "fanspeed": self._attr_fan_mode,
-            "swingv": self._attr_swing_mode,
-            "swingh": self._swingh_mode,
-        }
-        self._json = json.dumps(json_data)
+        # '{
+        #       "power":"$power",
+        #       "mode":"$hvac_mode",
+        #       "temp":$temperature,
+        #       "fanspeed":"$fan_mode",
+        #       "swingv":"$swing_mode",
+        #       "swingh":"$swingh_mode",
+        #       "source":"$source"
+        # }'
+        json_str = (
+            self.json_format.replace("$power", self._mitsubishi_power or "")
+            .replace("$hvac_mode", self._mitsubishi_hvac_mode or "")
+            .replace("$temperature", str(self._attr_target_temperature or ""))
+            .replace("$fan_mode", self._attr_fan_mode or "")
+            .replace("$swing_mode", self._attr_swing_mode or "")
+            .replace("$swingh_mode", self._swingh_mode or "")
+            .replace("$source", source or "")
+        )
+
+        self._json = json_str  # json.dumps(json_data)

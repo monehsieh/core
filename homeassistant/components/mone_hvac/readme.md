@@ -1,10 +1,12 @@
-# mone_hvac
+# `mone_hvac`
 
-- [`mone\_hvac`](#mone_hvac)
+- [`mone_hvac`](#mone_hvac)
   - [Climate Properties in configuration.yaml](#climate-properties-in-configurationyaml)
     - [name](#name)
     - [unique\_id](#unique_id)
-    - [protocol](#protocol)
+    - [max\_temp](#max_temp)
+    - [min\_temp](#min_temp)
+    - [target\_temp\_step](#target_temp_step)
     - [ir\_is\_online\_template](#ir_is_online_template)
     - [current\_temperature\_template](#current_temperature_template)
     - [current\_humidity\_template](#current_humidity_template)
@@ -12,6 +14,7 @@
     - [fan\_modes](#fan_modes)
     - [swingv\_modes](#swingv_modes)
     - [swingh\_modes](#swingh_modes)
+    - [json\_format](#json_format)
   - [Examples](#examples)
   - [Services](#services)
     - [set\_swingh\_mode](#set_swingh_mode)
@@ -27,9 +30,17 @@ The name of the climate device
 Optional.<br/>
 The unique ID of the climate device
 
-### protocol
+### max_temp
 Optional.<br/>
-The protocol value in json file.  It provides a way to do versioning and forward and backward JSON compatibility. The default is "MSZ__NA".
+default: 32
+
+### min_temp
+Optional.<br/>
+default: 16
+
+### target_temp_step
+Optional.<br/>
+default: 1
 
 ### ir_is_online_template
 Optional.<br/>
@@ -105,6 +116,16 @@ The default is:
         - "Wide"
 ```
 
+### json_format
+Optional.<br/>
+The format of json used to create the json attribute.  $<attribute name> will be replaced with the real value.
+The default is:
+
+```yaml
+    json_format: '{"power":"$power","mode":"$hvac_mode","temp":$temperature,"fanspeed":"$fan_mode","swingv":"$swing_mode","swingh":"$swingh_mode","source":"$source"}'
+```
+
+
 
 
 ## Examples
@@ -117,6 +138,7 @@ climate:
     ir_is_online_template: "{{ is_state('input_boolean.family_room_ir_is_online', 'on') }}"
     current_temperature_template: "{{ states('sensor.govee_thermometer_temperature') }}"
     current_humidity_template: "{{ states('sensor.govee_thermometer_humidity') }}"
+    json_format: '{"power":"$power","mode":"$hvac_mode","temp":$temperature,"fanspeed":"$fan_mode","swingv":"$swing_mode","swingh":"$swingh_mode","source":"$source"}'
 ```
 
 
